@@ -20,7 +20,8 @@ class Flatten_Head(nn.Module):
         x = self.flatten(x)
         x = self.linear(x)
         x = self.dropout(x)
-        return x   # x: [bs x nvars x seq_len]
+        return x  # x: [bs x nvars x seq_len]
+
 
 class Pooler_Head(nn.Module):
     def __init__(self, n_vars, d_model, head_dropout=0):
@@ -38,8 +39,9 @@ class Pooler_Head(nn.Module):
         )
 
     def forward(self, x):  # [bs x n_vars x d_model]
-        x = self.pooler(x) # [bs x dimension]
+        x = self.pooler(x)  # [bs x dimension]
         return x
+
 
 class Model(nn.Module):
     """
@@ -62,17 +64,23 @@ class Model(nn.Module):
         self.visual_path = None
 
         # Embedding
-        self.enc_embedding = DataEmbedding_inverted(configs.seq_len, configs.d_model, configs.embed, configs.freq, configs.dropout)
+        self.enc_embedding = DataEmbedding_inverted(
+            configs.seq_len, configs.d_model, configs.embed, configs.freq, configs.dropout
+        )
 
         # Temporal shift token
         if self.lineage_tokens:
             print("init {} lineage tokens!".format(self.lineage_tokens + 1))
 
             if self.configs.current_token:
-                self.token_0 = nn.Parameter(torch.zeros(1, 1, configs.d_model), requires_grad=True) # current lineage token
+                self.token_0 = nn.Parameter(
+                    torch.zeros(1, 1, configs.d_model), requires_grad=True
+                )  # current lineage token
 
             for i in range(self.lineage_tokens):
-                setattr(self, f'token_{i + 1}', nn.Parameter(torch.zeros(1, 1, configs.d_model), requires_grad=True)) # past lineage token
+                setattr(
+                    self, f"token_{i + 1}", nn.Parameter(torch.zeros(1, 1, configs.d_model), requires_grad=True)
+                )  # past lineage token
             self.initialize_weights()
 
         # Encoder
@@ -80,19 +88,27 @@ class Model(nn.Module):
             [
                 EncoderLayer(
                     AttentionLayer(
-                        FullAttention(False, configs.factor, attention_dropout=configs.dropout,
-                                      output_attention=configs.output_attention), configs.d_model, configs.n_heads),
+                        FullAttention(
+                            False,
+                            configs.factor,
+                            attention_dropout=configs.dropout,
+                            output_attention=configs.output_attention,
+                        ),
+                        configs.d_model,
+                        configs.n_heads,
+                    ),
                     configs.d_model,
                     configs.d_ff,
                     dropout=configs.dropout,
-                    activation=configs.activation
-                ) for l in range(configs.e_layers)
+                    activation=configs.activation,
+                )
+                for l in range(configs.e_layers)
             ],
-            norm_layer=torch.nn.LayerNorm(configs.d_model)
+            norm_layer=torch.nn.LayerNorm(configs.d_model),
         )
 
         # Decoder
-        if self.task_name == 'simmtm':
+        if self.task_name == "simmtm":
 
             # for series-wise representation
             self.pooler = Pooler_Head(configs.enc_in, configs.d_model, head_dropout=configs.head_dropout)
@@ -105,51 +121,76 @@ class Model(nn.Module):
             self.aggregation = AggregationRebuild(self.configs)
             self.mse = torch.nn.MSELoss()
 
-        elif self.task_name == 'timesiam':
+        elif self.task_name == "timesiam":
 
             self.decoder = Decoder(
                 [
                     Siamese_DecoderLayer(
                         AttentionLayer(
-                            FullAttention(False, configs.factor, attention_dropout=configs.dropout,
-                                          output_attention=configs.output_attention), configs.d_model, configs.n_heads),
+                            FullAttention(
+                                False,
+                                configs.factor,
+                                attention_dropout=configs.dropout,
+                                output_attention=configs.output_attention,
+                            ),
+                            configs.d_model,
+                            configs.n_heads,
+                        ),
                         AttentionLayer(
-                            FullAttention(False, configs.factor, attention_dropout=configs.dropout,
-                                          output_attention=configs.output_attention), configs.d_model, configs.n_heads),
+                            FullAttention(
+                                False,
+                                configs.factor,
+                                attention_dropout=configs.dropout,
+                                output_attention=configs.output_attention,
+                            ),
+                            configs.d_model,
+                            configs.n_heads,
+                        ),
                         configs.d_model,
                         configs.d_ff,
                         dropout=configs.dropout,
-                        activation=configs.activation
-                    ) for l in range(configs.d_layers)
+                        activation=configs.activation,
+                    )
+                    for l in range(configs.d_layers)
                 ],
                 norm_layer=torch.nn.LayerNorm(configs.d_model),
-                projection=nn.Linear(configs.d_model, configs.seq_len, bias=True)
+                projection=nn.Linear(configs.d_model, configs.seq_len, bias=True),
             )
 
-        if self.task_name in ['linear_probe', 'fine_tune', 'fine_tune_part']:
+        if self.task_name in ["linear_probe", "fine_tune", "fine_tune_part"]:
             self.representation_using = configs.representation_using
 
-            if self.lineage_tokens and self.representation_using == 'concat':
-                print("{}>  Representation ({}), head dimension {}*{}".format('-'*50, self.representation_using, configs.d_model, self.lineage_tokens))
-                self.head = Flatten_Head(configs.d_model*self.lineage_tokens, configs.pred_len, head_dropout=configs.head_dropout)
+            if self.lineage_tokens and self.representation_using == "concat":
+                print(
+                    "{}>  Representation ({}), head dimension {}*{}".format(
+                        "-" * 50, self.representation_using, configs.d_model, self.lineage_tokens
+                    )
+                )
+                self.head = Flatten_Head(
+                    configs.d_model * self.lineage_tokens, configs.pred_len, head_dropout=configs.head_dropout
+                )
             else:
-                print("{}> Representation ({}), head dimension {}".format('-'*50, self.representation_using, configs.d_model))
+                print(
+                    "{}> Representation ({}), head dimension {}".format(
+                        "-" * 50, self.representation_using, configs.d_model
+                    )
+                )
                 self.head = Flatten_Head(configs.d_model, configs.pred_len, head_dropout=configs.head_dropout)
-        if self.task_name in ['long_term_forecast', 'short_term_forecast']:
+        if self.task_name in ["long_term_forecast", "short_term_forecast"]:
             self.head = nn.Linear(configs.d_model, configs.pred_len, bias=True)
-        if self.task_name == 'imputation':
+        if self.task_name == "imputation":
             self.head = nn.Linear(configs.d_model, configs.seq_len, bias=True)
-        if self.task_name == 'anomaly_detection':
+        if self.task_name == "anomaly_detection":
             self.head = nn.Linear(configs.d_model, configs.seq_len, bias=True)
-        if self.task_name == 'classification':
+        if self.task_name == "classification":
             self.act = F.gelu
             self.dropout = nn.Dropout(configs.dropout)
             self.head = nn.Linear(configs.d_model * configs.enc_in, configs.num_class)
 
     def initialize_weights(self):
         for i in range(self.lineage_tokens):
-            token = getattr(self, f'token_{i + 1}')
-            torch.nn.init.normal_(token, std=.02)
+            token = getattr(self, f"token_{i + 1}")
+            torch.nn.init.normal_(token, std=0.02)
 
     def norm(self, x, mask=None):
         if mask is not None:
@@ -180,7 +221,7 @@ class Model(nn.Module):
         stdev = torch.sqrt(torch.var(x_enc, dim=1, keepdim=True, unbiased=False) + 1e-5)
         x_enc /= stdev
 
-        _, _, N = x_enc.shape   # x_enc: [Batch Time Variate]
+        _, _, N = x_enc.shape  # x_enc: [Batch Time Variate]
 
         # Embedding
         enc_out = self.enc_embedding(x_enc, x_mark_enc)
@@ -200,33 +241,33 @@ class Model(nn.Module):
         stdev = torch.sqrt(torch.var(x_enc, dim=1, keepdim=True, unbiased=False) + 1e-5)
         x_enc /= stdev
 
-        _, _, N = x_enc.shape   # x_enc: [Batch Time Variate]
+        _, _, N = x_enc.shape  # x_enc: [Batch Time Variate]
 
         # Embedding
-        enc_emb = self.enc_embedding(x_enc) # [bs x n_vars x d_model]
+        enc_emb = self.enc_embedding(x_enc)  # [bs x n_vars x d_model]
 
         # add temperal shift token
         if self.lineage_tokens and self.lineage_tokens != 0:
 
-            if self.representation_using == 'concat':
+            if self.representation_using == "concat":
                 outputs = []
                 for i in range(self.lineage_tokens):
 
                     # get and add temperal shift token
-                    token = getattr(self, f'token_{i + 1}')
+                    token = getattr(self, f"token_{i + 1}")
 
-                    if self.tokens_using == 'single':
+                    if self.tokens_using == "single":
                         enc_input = enc_emb + token.repeat(enc_emb.shape[0], enc_emb.shape[1], 1).to(enc_emb.device)
                     else:
                         enc_input = enc_emb + token.repeat(enc_emb.shape[0], 1, 1).to(enc_emb.device)
 
                     # encoder
-                    enc_out, attns = self.encoder(enc_input, attn_mask=None) # [bs x n_vars x d_model]
+                    enc_out, attns = self.encoder(enc_input, attn_mask=None)  # [bs x n_vars x d_model]
 
                     outputs.append(enc_out)
                 enc_out = torch.cat(outputs, dim=-1)
-            elif self.representation_using == 'avg':
-                
+            elif self.representation_using == "avg":
+
                 outputs = []
 
                 # current token
@@ -240,14 +281,14 @@ class Model(nn.Module):
                 for i in range(self.lineage_tokens):
 
                     # get and add temperal shift token
-                    token = getattr(self, f'token_{i + 1}')
+                    token = getattr(self, f"token_{i + 1}")
                     enc_input = enc_emb + token.repeat(enc_emb.shape[0], enc_emb.shape[1], 1).to(enc_emb.device)
 
                     # encoder
                     enc_out, attns = self.encoder(enc_input, attn_mask=None)
                     outputs.append(enc_out)
 
-                enc_out = torch.stack(outputs).mean(dim=0) # [bs x n_vars x d_model]
+                enc_out = torch.stack(outputs).mean(dim=0)  # [bs x n_vars x d_model]
         else:
             # encoder
             enc_out, attns = self.encoder(enc_emb, attn_mask=None)
@@ -266,17 +307,17 @@ class Model(nn.Module):
         stdev = torch.sqrt(torch.var(x_enc, dim=1, keepdim=True, unbiased=False) + 1e-5)
         x_enc /= stdev
 
-        bs, seq_len, n_vars = x_enc.shape # [bs x seq_len x n_vars]
+        bs, seq_len, n_vars = x_enc.shape  # [bs x seq_len x n_vars]
         new_seq_len = seq_len // self.lineage_tokens  # equal pre-training sequence length
-        x_enc = x_enc.reshape(bs, self.lineage_tokens, new_seq_len, n_vars) # [bs x n x new_seq_len x n_vars]
+        x_enc = x_enc.reshape(bs, self.lineage_tokens, new_seq_len, n_vars)  # [bs x n x new_seq_len x n_vars]
 
         outputs = []
         for i in range(self.lineage_tokens):
-            new_x_enc = x_enc[:, i, :, :] # [bs x new_seq_len x n_vars]
+            new_x_enc = x_enc[:, i, :, :]  # [bs x new_seq_len x n_vars]
 
             # Embedding
             enc_emb = self.enc_embedding(new_x_enc)  # [bs x n_vars x d_model]
-            token = getattr(self, f'token_{i + 1}')
+            token = getattr(self, f"token_{i + 1}")
             enc_input = enc_emb + token.repeat(enc_emb.shape[0], enc_emb.shape[1], 1).to(enc_emb.device)
             enc_out, attns = self.encoder(enc_input, attn_mask=None)  # [bs x n_vars x d_model]
 
@@ -284,7 +325,7 @@ class Model(nn.Module):
 
         enc_out = torch.cat(outputs, dim=-1)  # [bs x n_vars x (n * d_model)]
 
-        dec_out = self.head(enc_out).permute(0, 2, 1) # [bs x seq_len x n_vars]
+        dec_out = self.head(enc_out).permute(0, 2, 1)  # [bs x seq_len x n_vars]
         # De-Normalization from Non-stationary Transformer
         dec_out = dec_out * (stdev[:, 0, :].unsqueeze(1).repeat(1, self.pred_len, 1))
         dec_out = dec_out + (means[:, 0, :].unsqueeze(1).repeat(1, self.pred_len, 1))
@@ -350,11 +391,13 @@ class Model(nn.Module):
         p_enc_out, attns = self.encoder(enc_out)  # p_enc_out: [bs x n_vars x d_model]
 
         # series-wise representation
-        s_enc_out = self.pooler(p_enc_out) # s_enc_out: [bs x dimension]
+        s_enc_out = self.pooler(p_enc_out)  # s_enc_out: [bs x dimension]
 
         # series weight learning
-        loss_cl, similarity_matrix, logits, positives_mask = self.contrastive(s_enc_out) # similarity_matrix: [bs x bs]
-        rebuild_weight_matrix, agg_enc_out = self.aggregation(similarity_matrix, p_enc_out) # agg_enc_out: [bs x n_vars x d_model]
+        loss_cl, similarity_matrix, logits, positives_mask = self.contrastive(s_enc_out)  # similarity_matrix: [bs x bs]
+        rebuild_weight_matrix, agg_enc_out = self.aggregation(
+            similarity_matrix, p_enc_out
+        )  # agg_enc_out: [bs x n_vars x d_model]
 
         # Decoder
         dec_out = self.projection(agg_enc_out)  # [bs x n_vars x seq_len]
@@ -363,7 +406,7 @@ class Model(nn.Module):
         # De-Normalization
         dec_out = self.denorm(dec_out, means, stdev, self.seq_len)
 
-        pred_batch_x = dec_out[:batch_x.shape[0]]
+        pred_batch_x = dec_out[: batch_x.shape[0]]
 
         # series reconstruction
         loss_rb = self.mse(pred_batch_x, batch_x.detach())
@@ -376,25 +419,25 @@ class Model(nn.Module):
     def pretrain_timesiam(self, past_x_enc, past_x_mark_enc, fur_x_enc, fur_x_mark_enc, segment, mask):
 
         # Normalization
-        past_x_enc, _, _ = self.norm(past_x_enc) # [bs x seq_len x n_vars]
-        fur_x_enc, means, stdev = self.norm(fur_x_enc, mask=mask) # [bs x seq_len x n_vars]
+        past_x_enc, _, _ = self.norm(past_x_enc)  # [bs x seq_len x n_vars]
+        fur_x_enc, means, stdev = self.norm(fur_x_enc, mask=mask)  # [bs x seq_len x n_vars]
 
         """past window"""
         # past window embedding
-        past_x_enc = self.enc_embedding(past_x_enc, past_x_mark_enc) # [bs x n_vars x d_model]
+        past_x_enc = self.enc_embedding(past_x_enc, past_x_mark_enc)  # [bs x n_vars x d_model]
 
         # add temperal shift token
         if self.lineage_tokens:
             selected_tensors = []
             for i in segment:
-                token = getattr(self, f'token_{i + 1}')
+                token = getattr(self, f"token_{i + 1}")
                 selected_tensors.append(token)
             lineages = torch.cat(selected_tensors, dim=0)
             lineages = lineages.repeat(1, past_x_enc.shape[1], 1).to(past_x_enc.device)  # [bs x n_vars x d_model]
             past_x_enc = past_x_enc + lineages
 
         # encoder - past window
-        past_enc_out, attns = self.encoder(past_x_enc, attn_mask=None) # past_enc_out: [bs x n_vars x d_model]
+        past_enc_out, attns = self.encoder(past_x_enc, attn_mask=None)  # past_enc_out: [bs x n_vars x d_model]
 
         """future window"""
         # current window embedding
@@ -402,14 +445,16 @@ class Model(nn.Module):
 
         # add current temporal shift token
         if self.lineage_tokens and self.configs.current_token:
-            fur_x_enc = fur_x_enc + self.token_0.repeat(fur_x_enc.shape[0], fur_x_enc.shape[1], 1).to(fur_x_enc.device)  # cur_x_enc: [(bs*n_vars)  x patch_num x d_model]
+            fur_x_enc = fur_x_enc + self.token_0.repeat(fur_x_enc.shape[0], fur_x_enc.shape[1], 1).to(
+                fur_x_enc.device
+            )  # cur_x_enc: [(bs*n_vars)  x patch_num x d_model]
 
         # encoder - future window
-        fur_enc_out, attns = self.encoder(fur_x_enc, attn_mask=None) # cur_enc_out: [bs x n_vars x d_model]
+        fur_enc_out, attns = self.encoder(fur_x_enc, attn_mask=None)  # cur_enc_out: [bs x n_vars x d_model]
 
         """cross past and current window"""
         # decoder - cross attention
-        dec_out = self.decoder(fur_enc_out, past_enc_out).permute(0, 2, 1) # dec_out: [bs x seq_len x n_vars]
+        dec_out = self.decoder(fur_enc_out, past_enc_out).permute(0, 2, 1)  # dec_out: [bs x seq_len x n_vars]
 
         # De-Normalization
         dec_out = self.denorm(dec_out, means, stdev, self.seq_len)
@@ -417,22 +462,22 @@ class Model(nn.Module):
         return dec_out
 
     def forward(self, x_enc, x_mark_enc, x_dec=None, x_mark_dec=None, segment=None, mask=None):
-        if self.task_name == 'simmtm':
+        if self.task_name == "simmtm":
             return self.pretrain_simmtm(x_enc, x_mark_enc, x_dec, mask)
-        if self.task_name == 'timesiam':
+        if self.task_name == "timesiam":
             return self.pretrain_timesiam(x_enc, x_mark_enc, x_dec, x_mark_dec, segment, mask)
-        if  self.task_name in ['linear_probe', 'fine_tune', 'fine_tune_part']:
+        if self.task_name in ["linear_probe", "fine_tune", "fine_tune_part"]:
             return self.temperal_shift_forecast(x_enc, x_mark_enc, x_dec, x_mark_dec)
-        if self.task_name in ['long_term_forecast', 'short_term_forecast']:
+        if self.task_name in ["long_term_forecast", "short_term_forecast"]:
             dec_out = self.forecast(x_enc, x_mark_enc, x_dec, x_mark_dec)
-            return dec_out[:, -self.pred_len:, :]  # [B, L, D]
-        if self.task_name == 'imputation':
+            return dec_out[:, -self.pred_len :, :]  # [B, L, D]
+        if self.task_name == "imputation":
             dec_out = self.imputation(x_enc, x_mark_enc, x_dec, x_mark_dec, mask)
             return dec_out  # [B, L, D]
-        if self.task_name == 'anomaly_detection':
+        if self.task_name == "anomaly_detection":
             dec_out = self.anomaly_detection(x_enc)
             return dec_out  # [B, L, D]
-        if self.task_name == 'classification':
+        if self.task_name == "classification":
             dec_out = self.classification(x_enc, x_mark_enc)
             return dec_out  # [B, N]
         return None
