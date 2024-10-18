@@ -403,6 +403,7 @@ class Dataset_PA(Dataset):
         sampling_range=None,
         lineage_tokens=None,
         neighours=False,
+        raw_data=None,
     ):
         # size [seq_len, label_len, pred_len]
         # info
@@ -431,7 +432,7 @@ class Dataset_PA(Dataset):
         self.window_gap = window_gap
         self.sampling_range = sampling_range
         self.lineage_tokens = lineage_tokens
-        self.__read_data__()
+        self.__read_data__(raw_data=raw_data)
 
         self.neighours = neighours
         self.time_series = self.data_x
@@ -442,9 +443,11 @@ class Dataset_PA(Dataset):
         self.T = self.seq_len
         self.normalize = True
 
-    def __read_data__(self):
+    def __read_data__(self, raw_data=None):
         self.scaler = StandardScaler()
-        df_raw = pd.read_csv(os.path.join(self.root_path, self.data_path))
+
+        if raw_data is None:
+            df_raw = pd.read_csv(os.path.join(self.root_path, self.data_path))
 
         """
         df_raw.columns: ['date', ...(other features), target feature]
