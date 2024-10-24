@@ -18,7 +18,8 @@ from tensorboardX import SummaryWriter
 import random
 from torch.nn.parallel import DistributedDataParallel
 from tensorboardX import SummaryWriter
-warnings.filterwarnings('ignore')
+
+warnings.filterwarnings("ignore")
 
 
 class Exp_Pretrain_PatchTST(Exp_Basic):
@@ -39,7 +40,7 @@ class Exp_Pretrain_PatchTST(Exp_Basic):
             model = nn.DataParallel(model, device_ids=self.args.device_ids)
 
         # print out the model size
-        print('number of model params', sum(p.numel() for p in model.parameters() if p.requires_grad))
+        # print('number of model params', sum(p.numel() for p in model.parameters() if p.requires_grad))
 
         return model
 
@@ -58,17 +59,19 @@ class Exp_Pretrain_PatchTST(Exp_Basic):
 
     def pretrain(self):
 
-        print("{}>\t mask_rule: patch_masking\tmask_rate: {}".format('-'*50, self.args.mask_rate))
+        print("{}>\t mask_rule: patch_masking\tmask_rate: {}".format("-" * 50, self.args.mask_rate))
 
-        train_data, train_loader = self._get_data(flag='train')
-        vali_data, vali_loader = self._get_data(flag='val')
+        train_data, train_loader = self._get_data(flag="train")
+        vali_data, vali_loader = self._get_data(flag="val")
 
         path = os.path.join(self.args.pretrain_checkpoints, self.args.data)
         if not os.path.exists(path):
             os.makedirs(path)
 
         model_optim = self._select_optimizer()
-        model_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=model_optim, T_max=self.args.train_epochs)
+        model_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer=model_optim, T_max=self.args.train_epochs
+        )
         min_vali_loss = None
 
         for epoch in range(self.args.train_epochs):
@@ -78,12 +81,15 @@ class Exp_Pretrain_PatchTST(Exp_Basic):
             vali_loss = self.valid_one_epoch(vali_loader, epoch)
 
             end_time = time.time()
-            print("Epoch: {0}, Lr: {1:.7f}, Time: {2:.2f}s | Train Loss: {3:.4f} Val Loss: {4:.4f}"
-                  .format(epoch, model_scheduler.get_lr()[0], end_time-start_time, train_loss, vali_loss))
+            print(
+                "Epoch: {0}, Lr: {1:.7f}, Time: {2:.2f}s | Train Loss: {3:.4f} Val Loss: {4:.4f}".format(
+                    epoch, model_scheduler.get_lr()[0], end_time - start_time, train_loss, vali_loss
+                )
+            )
 
             loss_scalar_dict = {
-                'train_loss': train_loss,
-                'vali_loss': vali_loss,
+                "train_loss": train_loss,
+                "vali_loss": vali_loss,
             }
 
             self.writer.add_scalars(f"/pretrain_loss", loss_scalar_dict, epoch)
@@ -93,15 +99,19 @@ class Exp_Pretrain_PatchTST(Exp_Basic):
                 if epoch == 0:
                     min_vali_loss = vali_loss
 
-                print("Validation loss decreased ({0:.4f} --> {1:.4f}).  Saving model epoch{2} ...".format(min_vali_loss, vali_loss, epoch))
+                print(
+                    "Validation loss decreased ({0:.4f} --> {1:.4f}).  Saving model epoch{2} ...".format(
+                        min_vali_loss, vali_loss, epoch
+                    )
+                )
 
                 min_vali_loss = vali_loss
-                encoder_ckpt = {'epoch': epoch, 'model_state_dict': self.model.state_dict()}
+                encoder_ckpt = {"epoch": epoch, "model_state_dict": self.model.state_dict()}
                 torch.save(encoder_ckpt, os.path.join(path, "ckpt_best.pth"))
 
             if (epoch + 1) % 5 == 0:
                 print("Saving model at epoch {}...".format(epoch + 1))
-                encoder_ckpt = {'epoch': epoch, 'model_state_dict': self.model.state_dict()}
+                encoder_ckpt = {"epoch": epoch, "model_state_dict": self.model.state_dict()}
                 torch.save(encoder_ckpt, os.path.join(path, f"ckpt{epoch + 1}.pth"))
 
     def pretrain_one_epoch(self, train_loader, model_optim, model_scheduler, epoch):
@@ -117,7 +127,9 @@ class Exp_Pretrain_PatchTST(Exp_Basic):
             batch_x_mark = batch_x_mark.float().to(self.device)
 
             # model
-            loss, _, _, _ = self.model(batch_x, batch_x_mark) # pred/target: [bs x num_patch x n_vars x patch_len] mask: [bs x num_patch x n_vars]
+            loss, _, _, _ = self.model(
+                batch_x, batch_x_mark
+            )  # pred/target: [bs x num_patch x n_vars x patch_len] mask: [bs x num_patch x n_vars]
 
             # Backward
             loss.backward()
@@ -140,7 +152,9 @@ class Exp_Pretrain_PatchTST(Exp_Basic):
             batch_x_mark = batch_x_mark.float().to(self.device)
 
             # model
-            loss, _, _, _ = self.model(batch_x, batch_x_mark) # pred/target: [bs x num_patch x n_vars x patch_len] mask: [bs x num_patch x n_vars]
+            loss, _, _, _ = self.model(
+                batch_x, batch_x_mark
+            )  # pred/target: [bs x num_patch x n_vars x patch_len] mask: [bs x num_patch x n_vars]
             valid_loss.append(loss.item())
 
         vali_loss = np.average(valid_loss)
@@ -168,7 +182,7 @@ class Exp_Pretrain_TimeSiam(Exp_Basic):
             model = nn.DataParallel(model, device_ids=self.args.device_ids)
 
         # print model size
-        print('number of model params', sum(p.numel() for p in model.parameters() if p.requires_grad))
+        # print("number of model params", sum(p.numel() for p in model.parameters() if p.requires_grad))
         return model
 
     def _get_data(self, flag):
@@ -182,18 +196,32 @@ class Exp_Pretrain_TimeSiam(Exp_Basic):
 
     def pretrain(self):
 
-        print("{}> pretrain seq len: {} \t sampling_range: {}*{} \t lineage_tokens: {} \t mask_rule: {} \t mask_rate: {} \t tokens_using: {} \t representation_using: {}<{}"
-              .format('-'*50, self.args.seq_len, self.args.sampling_range, self.args.seq_len, self.args.lineage_tokens, self.args.masked_rule, self.args.mask_rate, self.args.tokens_using, self.args.representation_using, '-'*50))
+        print(
+            "{}> pretrain seq len: {} \t sampling_range: {}*{} \t lineage_tokens: {} \t mask_rule: {} \t mask_rate: {} \t tokens_using: {} \t representation_using: {}<{}".format(
+                "-" * 50,
+                self.args.seq_len,
+                self.args.sampling_range,
+                self.args.seq_len,
+                self.args.lineage_tokens,
+                self.args.masked_rule,
+                self.args.mask_rate,
+                self.args.tokens_using,
+                self.args.representation_using,
+                "-" * 50,
+            )
+        )
 
-        train_data, train_loader = self._get_data(flag='train')
-        vali_data, vali_loader = self._get_data(flag='val')
+        train_data, train_loader = self._get_data(flag="train")
+        vali_data, vali_loader = self._get_data(flag="val")
 
         path = os.path.join(self.args.pretrain_checkpoints, self.args.data)
         if not os.path.exists(path):
             os.makedirs(path)
 
         model_optim = self._select_optimizer()
-        model_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=model_optim, T_max=self.args.train_epochs)
+        model_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer=model_optim, T_max=self.args.train_epochs
+        )
         min_vali_loss = None
 
         for epoch in range(self.args.train_epochs):
@@ -203,12 +231,15 @@ class Exp_Pretrain_TimeSiam(Exp_Basic):
             vali_loss = self.valid_one_epoch(vali_loader)
 
             end_time = time.time()
-            print("Epoch: {0}, Lr: {1:.7f}, Time: {2:.2f}s | Train Loss: {3:.4f} Val Loss: {4:.4f}"
-                  .format(epoch, model_scheduler.get_lr()[0], end_time-start_time, train_loss, vali_loss))
+            print(
+                "Epoch: {0}, Lr: {1:.7f}, Time: {2:.2f}s | Train Loss: {3:.4f} Val Loss: {4:.4f}".format(
+                    epoch, model_scheduler.get_lr()[0], end_time - start_time, train_loss, vali_loss
+                )
+            )
 
             loss_scalar_dict = {
-                'train_loss': train_loss,
-                'vali_loss': vali_loss,
+                "train_loss": train_loss,
+                "vali_loss": vali_loss,
             }
 
             self.writer.add_scalars(f"/pretrain_loss", loss_scalar_dict, epoch)
@@ -217,14 +248,18 @@ class Exp_Pretrain_TimeSiam(Exp_Basic):
                 if epoch == 0:
                     min_vali_loss = vali_loss
 
-                print("Validation loss decreased ({0:.4f} --> {1:.4f}).  Saving model epoch{2} ...".format(min_vali_loss, vali_loss, epoch))
+                print(
+                    "Validation loss decreased ({0:.4f} --> {1:.4f}).  Saving model epoch{2} ...".format(
+                        min_vali_loss, vali_loss, epoch
+                    )
+                )
                 min_vali_loss = vali_loss
-                encoder_ckpt = {'epoch': epoch, 'model_state_dict': self.model.state_dict()}
+                encoder_ckpt = {"epoch": epoch, "model_state_dict": self.model.state_dict()}
                 torch.save(encoder_ckpt, os.path.join(path, "ckpt_best.pth"))
 
             if (epoch + 1) % 5 == 0:
                 print("Saving model at epoch {}...".format(epoch + 1))
-                encoder_ckpt = {'epoch': epoch, 'model_state_dict': self.model.state_dict()}
+                encoder_ckpt = {"epoch": epoch, "model_state_dict": self.model.state_dict()}
                 torch.save(encoder_ckpt, os.path.join(path, f"ckpt{epoch + 1}.pth"))
 
     def pretrain_one_epoch(self, train_loader, model_optim, model_scheduler):
@@ -314,7 +349,7 @@ class Exp_Train(Exp_Basic):
             model = nn.DataParallel(model, device_ids=self.args.device_ids)
 
         # print out the model size
-        print('number of model params', sum(p.numel() for p in model.parameters() if p.requires_grad))
+        print("number of model params", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
         return model
 
@@ -333,9 +368,9 @@ class Exp_Train(Exp_Basic):
 
     def train(self, setting):
 
-        train_data, train_loader = self._get_data(flag='train')
-        vali_data, vali_loader = self._get_data(flag='val')
-        test_data, test_loader = self._get_data(flag='test')
+        train_data, train_loader = self._get_data(flag="train")
+        vali_data, vali_loader = self._get_data(flag="val")
+        test_data, test_loader = self._get_data(flag="test")
 
         path = os.path.join(self.args.checkpoints, setting)
         if not os.path.exists(path):
@@ -347,11 +382,13 @@ class Exp_Train(Exp_Basic):
         model_optim = self._select_optimizer()
         criterion = self._select_criterion()
 
-        scheduler = lr_scheduler.OneCycleLR(optimizer = model_optim,
-                                            steps_per_epoch = train_steps,
-                                            pct_start = self.args.pct_start,
-                                            epochs = self.args.train_epochs,
-                                            max_lr = self.args.learning_rate)
+        scheduler = lr_scheduler.OneCycleLR(
+            optimizer=model_optim,
+            steps_per_epoch=train_steps,
+            pct_start=self.args.pct_start,
+            epochs=self.args.train_epochs,
+            max_lr=self.args.learning_rate,
+        )
 
         if self.args.use_amp:
             scaler = torch.cuda.amp.GradScaler()
@@ -383,8 +420,8 @@ class Exp_Train(Exp_Basic):
                 batch_x_mark = batch_x_mark.float().to(self.device)
 
                 # decoder input
-                dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
-                dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
+                dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len :, :]).float()
+                dec_inp = torch.cat([batch_y[:, : self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
 
                 # encoder - decoder
                 if self.args.use_amp:
@@ -394,9 +431,9 @@ class Exp_Train(Exp_Basic):
                         else:
                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
-                        f_dim = -1 if self.args.features == 'MS' else 0
-                        outputs = outputs[:, -self.args.pred_len:, f_dim:]
-                        batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+                        f_dim = -1 if self.args.features == "MS" else 0
+                        outputs = outputs[:, -self.args.pred_len :, f_dim:]
+                        batch_y = batch_y[:, -self.args.pred_len :, f_dim:].to(self.device)
                         loss = criterion(outputs, batch_y)
                         train_loss.append(loss.item())
                 else:
@@ -405,9 +442,9 @@ class Exp_Train(Exp_Basic):
                     else:
                         outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
-                    f_dim = -1 if self.args.features == 'MS' else 0
-                    outputs = outputs[:, -self.args.pred_len:, f_dim:]
-                    batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+                    f_dim = -1 if self.args.features == "MS" else 0
+                    outputs = outputs[:, -self.args.pred_len :, f_dim:]
+                    batch_y = batch_y[:, -self.args.pred_len :, f_dim:].to(self.device)
                     loss = criterion(outputs, batch_y)
                     train_loss.append(loss.item())
 
@@ -418,7 +455,7 @@ class Exp_Train(Exp_Basic):
                 else:
                     loss.backward()
                     model_optim.step()
-                
+
                 self.iters += 1
 
             train_loss = np.average(train_loss)
@@ -426,14 +463,17 @@ class Exp_Train(Exp_Basic):
             test_loss = self.vali(test_data, test_loader, criterion)
 
             end_time = time.time()
-            print("Epoch: {0}, Steps: {1}, Time: {2:.2f}s | Train Loss: {3:.7f} Vali Loss: {4:.7f} Test Loss: {5:.7f}".format(
-                epoch + 1, train_steps, end_time-start_time, train_loss, vali_loss, test_loss))
+            print(
+                "Epoch: {0}, Steps: {1}, Time: {2:.2f}s | Train Loss: {3:.7f} Vali Loss: {4:.7f} Test Loss: {5:.7f}".format(
+                    epoch + 1, train_steps, end_time - start_time, train_loss, vali_loss, test_loss
+                )
+            )
             early_stopping(vali_loss, self.model, path)
 
             loss_scalar_dict = {
-                'train_loss': train_loss,
-                'valid_loss': vali_loss,
-                'test_loss': test_loss,
+                "train_loss": train_loss,
+                "valid_loss": vali_loss,
+                "test_loss": test_loss,
             }
             self.writer.add_scalars(f"/epochs_loss", loss_scalar_dict, epoch + 1)
 
@@ -443,9 +483,9 @@ class Exp_Train(Exp_Basic):
 
             adjust_learning_rate(model_optim, scheduler, epoch + 1, self.args)
 
-        best_model_path = path + '/' + 'checkpoint.pth'
+        best_model_path = path + "/" + "checkpoint.pth"
         self.model.load_state_dict(torch.load(best_model_path))
-        self.lr = model_optim.param_groups[0]['lr']
+        self.lr = model_optim.param_groups[0]["lr"]
 
         return self.model
 
@@ -464,8 +504,8 @@ class Exp_Train(Exp_Basic):
                 batch_x_mark = batch_x_mark.float().to(self.device)
 
                 # decoder input
-                dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
-                dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
+                dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len :, :]).float()
+                dec_inp = torch.cat([batch_y[:, : self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
                 # encoder - decoder
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
@@ -478,9 +518,9 @@ class Exp_Train(Exp_Basic):
                         outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
                     else:
                         outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                f_dim = -1 if self.args.features == 'MS' else 0
-                outputs = outputs[:, -self.args.pred_len:, f_dim:]
-                batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+                f_dim = -1 if self.args.features == "MS" else 0
+                outputs = outputs[:, -self.args.pred_len :, f_dim:]
+                batch_y = batch_y[:, -self.args.pred_len :, f_dim:].to(self.device)
 
                 pred = outputs.detach().cpu()
                 true = batch_y.detach().cpu()
@@ -493,11 +533,11 @@ class Exp_Train(Exp_Basic):
         return total_loss
 
     def test(self, setting=None, test=0, log=1, iters=None):
-        test_data, test_loader = self._get_data(flag='test')
+        test_data, test_loader = self._get_data(flag="test")
 
         preds = []
         trues = []
-        folder_path = './outputs/test_results/{}'.format(self.args.data)
+        folder_path = "./outputs/test_results/{}".format(self.args.data)
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
@@ -511,8 +551,8 @@ class Exp_Train(Exp_Basic):
                 batch_y_mark = batch_y_mark.float().to(self.device)
 
                 # decoder input
-                dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
-                dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
+                dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len :, :]).float()
+                dec_inp = torch.cat([batch_y[:, : self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
                 # encoder - decoder
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
@@ -527,9 +567,9 @@ class Exp_Train(Exp_Basic):
                     else:
                         outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
-                f_dim = -1 if self.args.features == 'MS' else 0
-                outputs = outputs[:, -self.args.pred_len:, f_dim:]
-                batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+                f_dim = -1 if self.args.features == "MS" else 0
+                outputs = outputs[:, -self.args.pred_len :, f_dim:]
+                batch_y = batch_y[:, -self.args.pred_len :, f_dim:].to(self.device)
                 outputs = outputs.detach().cpu().numpy()
                 batch_y = batch_y.detach().cpu().numpy()
 
@@ -548,13 +588,17 @@ class Exp_Train(Exp_Basic):
 
         if log:
             if iters is not None:
-                log = 'iter, {0}, {1}->{2}, {3:.3f}, {4:.3f}'.format(iters, self.args.seq_len, self.args.pred_len, mse, mae)
+                log = "iter, {0}, {1}->{2}, {3:.3f}, {4:.3f}".format(
+                    iters, self.args.seq_len, self.args.pred_len, mse, mae
+                )
             else:
-                log = 'ep, {0}, {1}->{2}, {3:.3f}, {4:.3f}'.format(self.args.train_epochs, self.args.seq_len, self.args.pred_len, mse, mae)
+                log = "ep, {0}, {1}->{2}, {3:.3f}, {4:.3f}".format(
+                    self.args.train_epochs, self.args.seq_len, self.args.pred_len, mse, mae
+                )
 
             print(log)
-            f = open(f"{folder_path}/{self.args.task_name}_results.txt", 'a')
-            f.write(log + '\n')
+            f = open(f"{folder_path}/{self.args.task_name}_results.txt", "a")
+            f.write(log + "\n")
             f.close()
 
     def freeze(self):
@@ -563,14 +607,14 @@ class Exp_Train(Exp_Basic):
         require the model to have head attribute
         """
 
-        if hasattr(get_model(self.model), 'head'):
+        if hasattr(get_model(self.model), "head"):
             for name, param in get_model(self.model).named_parameters():
                 param.requires_grad = False
             for name, param in get_model(self.model).named_parameters():
-                if 'head' in name:
+                if "head" in name:
                     param.requires_grad = True
                     # print('unfreeze:', name)
-            print('model is frozen except the head!')
+            print("model is frozen except the head!")
 
     def freeze_part(self):
         """
@@ -578,19 +622,19 @@ class Exp_Train(Exp_Basic):
         require the model to have head attribute
         """
 
-        if hasattr(get_model(self.model), 'head'):
+        if hasattr(get_model(self.model), "head"):
             for name, param in get_model(self.model).named_parameters():
                 param.requires_grad = False
             for name, param in get_model(self.model).named_parameters():
-                if 'enc_embedding' in name or 'norm' in name or 'head' in name:
+                if "enc_embedding" in name or "norm" in name or "head" in name:
                     param.requires_grad = True
-                    print('unfreeze:', name)
+                    print("unfreeze:", name)
                 else:
-                    print('freeze:', name)
+                    print("freeze:", name)
 
     def unfreeze(self):
         for name, param in get_model(self.model).named_parameters():
-            if 'token' in name:
+            if "token" in name:
                 param.requires_grad = False
                 # print('freeze:', name)
                 continue
@@ -601,24 +645,24 @@ class Exp_Train(Exp_Basic):
         """
         Finetune the entire network
         """
-        if self.args.task_name == 'long_term_forecast':
-            print('Training the entire network!')
+        if self.args.task_name == "long_term_forecast":
+            print("Training the entire network!")
             self.unfreeze()
-        elif self.args.task_name == 'fine_tune':
-            print('Fine-tuning the entire network!')
+        elif self.args.task_name == "fine_tune":
+            print("Fine-tuning the entire network!")
             self.unfreeze()
-        elif self.args.task_name == 'fine_tune_part':
-            print('Fine-tuning part network!')
+        elif self.args.task_name == "fine_tune_part":
+            print("Fine-tuning part network!")
             self.freeze_part()
-        elif self.args.task_name == 'linear_probe':
-            print('Fine-tuning the head!')
+        elif self.args.task_name == "linear_probe":
+            print("Fine-tuning the head!")
             self.freeze()
         else:
             raise ValueError("Wrong task_name {}!".format(self.args.task_name))
 
-        print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
+        print(">>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>".format(setting))
         self.train(setting)
-        print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
+        print(">>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<".format(setting))
         self.test(setting)
 
 

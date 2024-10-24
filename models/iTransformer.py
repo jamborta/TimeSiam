@@ -70,7 +70,7 @@ class Model(nn.Module):
 
         # Temporal shift token
         if self.lineage_tokens:
-            print("init {} lineage tokens!".format(self.lineage_tokens + 1))
+            # print("init {} lineage tokens!".format(self.lineage_tokens + 1))
 
             if self.configs.current_token:
                 self.token_0 = nn.Parameter(
