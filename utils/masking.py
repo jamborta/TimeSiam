@@ -91,6 +91,54 @@ def geom_noise_mask_single(L, lm, masking_ratio):
     return keep_mask
 
 
+def geom_noise_mask_single_vectorised(L, lm, masking_ratio):
+    """
+    Randomly create a boolean mask of length `L`, consisting of subsequences of average length lm,
+    masking with 0s a `masking_ratio` proportion of the sequence L. The lengths of masking and
+    unmasking subsequences follow a geometric distribution.
+
+    Args:
+        L: length of the mask and sequence to be masked
+        lm: average length of masking subsequences (streaks of 0s)
+        masking_ratio: proportion of L to be masked
+
+    Returns:
+        (L,) boolean numpy array intended to mask ('drop') with 0s a sequence of length L
+    """
+    p_m = 1 / lm  # Probability of masking sequence stopping
+    p_u = p_m * masking_ratio / (1 - masking_ratio)  # Probability of unmasking sequence stopping
+    p = np.array([p_m, p_u])
+
+    # Start in state 0 (masking) with probability `masking_ratio`
+    state = int(np.random.rand() > masking_ratio)
+
+    # Estimate the number of runs needed
+    expected_runs = int(2 * L / lm)
+    max_runs = expected_runs + 10  # Add buffer to ensure coverage
+
+    # Generate states by alternating between 0 and 1 starting from the initial state
+    states = np.empty(max_runs, dtype=int)
+    states[0] = state
+    states[1:] = 1 - np.arange(1, max_runs) % 2  # Alternate states
+
+    # Generate lengths for each state
+    lengths = np.random.geometric(p[states])
+
+    # Compute cumulative lengths to determine when to stop
+    cum_lengths = np.cumsum(lengths)
+    run_limit = np.searchsorted(cum_lengths, L)
+
+    # Trim lengths and states to the required length L
+    lengths = lengths[: run_limit + 1]
+    lengths[-1] = lengths[-1] - (cum_lengths[run_limit] - L)
+    states = states[: run_limit + 1]
+
+    # Build the mask
+    keep_mask = np.repeat(states, lengths)[:L].astype(bool)
+
+    return keep_mask
+
+
 def generate_geometric_mask(B, T, C=None, p=0.75, l=3):
     if C:
         mask = np.ones((B, T, C), dtype=bool)
@@ -101,7 +149,7 @@ def generate_geometric_mask(B, T, C=None, p=0.75, l=3):
         if C:
             for c in range(C):
                 while True:
-                    generated_mask = geom_noise_mask_single(T, l, p)
+                    generated_mask = geom_noise_mask_single_vectorised(T, l, p)
                     if np.any(generated_mask):
                         mask[i, :, c] = generated_mask
                         break
