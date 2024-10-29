@@ -527,8 +527,16 @@ class Dataset_PA(Dataset):
 
         if self.normalize:
             # Note: this assumes that Open is at 0 position
-            seq_x = ((seq_x - seq_x[0][0]) / seq_x[0][0]) * 100
-            seq_y = ((seq_y - seq_y[0][0]) / seq_y[0][0]) * 100
+            # seq_x = ((seq_x - seq_x[0][0]) / seq_x[0][0]) * 100
+            # seq_y = ((seq_y - seq_y[0][0]) / seq_y[0][0]) * 100
+
+            min_val_seq_x = np.min(seq_x)
+            max_val_seq_x = np.max(seq_x)
+            seq_x = (seq_x - min_val_seq_x) / (max_val_seq_x - min_val_seq_x)
+
+            min_val_seq_y = np.min(seq_y)
+            max_val_seq_y = np.max(seq_y)
+            seq_y = (seq_y - min_val_seq_y) / (max_val_seq_y - min_val_seq_y)
 
         if self.neighours:
             self.time_series = seq_x
