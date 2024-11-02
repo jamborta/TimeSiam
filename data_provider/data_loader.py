@@ -527,8 +527,13 @@ class Dataset_PA(Dataset):
 
         if self.normalize:
             # Note: this assumes that Open is at 0 position
-            seq_x = ((seq_x - seq_x[0][0]) / seq_x[0][0]) * 100
-            seq_y = ((seq_y - seq_y[0][0]) / seq_y[0][0]) * 100
+            seq_x[:, 0:4] = ((seq_x[:, 0:4] - seq_x[0][0]) / seq_x[0][0]) * 100
+            seq_y[:, 0:4] = ((seq_y[:, 0:4] - seq_y[0][0]) / seq_y[0][0]) * 100
+
+            # counter features
+            if seq_x.shape[1] > 4:
+                seq_x[:, 4:] = seq_x[:, 4:] / 10.0
+                seq_y[:, 4:] = seq_y[:, 4:] / 10.0
 
         if self.neighours:
             self.time_series = seq_x
