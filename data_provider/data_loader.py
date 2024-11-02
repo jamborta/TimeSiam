@@ -532,8 +532,8 @@ class Dataset_PA(Dataset):
 
             # counter features
             if seq_x.shape[1] > 4:
-                seq_x[:, 4:] = seq_x[:, 4:] / 10.0
-                seq_y[:, 4:] = seq_y[:, 4:] / 10.0
+                seq_x[:, 4:] = (seq_x[:, 4:] + 1.0) / 10.0
+                seq_y[:, 4:] = (seq_y[:, 4:] + 1.0) / 10.0
 
         if self.neighours:
             self.time_series = seq_x
